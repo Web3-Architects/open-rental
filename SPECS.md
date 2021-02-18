@@ -1,5 +1,5 @@
 
-version: 0.1
+version: 0.2
 ### *Initial draft*
 
 
@@ -53,7 +53,7 @@ As a landlord:
   - Determine the amount of rent that is due and increasing each second! If rent is due once, the tenant doesn't necessarily to do 1 transfer per month. Similarly, the landlord doesn't have to withdraw rent money owed once a month.
   - Determine exactly the amount of rent that is due, unpaid and claimable from the rent guarantee (also increasing each second) 
 
-
+- L2 solution: tenants & landlords won't be happy if they have to pay an additional 10% of the rent in tx fees!
 
 # Research
 
