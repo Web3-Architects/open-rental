@@ -12,6 +12,8 @@ const { ethers } = hre;
 // TODO: to move
 const parseUnits18 = (stringToParse: string) => ethers.utils.parseEther(stringToParse);
 
+const FOUR_WEEKS_IN_SECS = 2419200;
+
 describe("Rental Agreement", function () {
   let landlord: SignerWithAddress;
   let tenant1: SignerWithAddress;
@@ -56,6 +58,22 @@ describe("Rental Agreement", function () {
       expect(await rental.rent()).to.eq(rent);
       expect(await rental.deposit()).to.eq(deposit);
       expect(await rental.rentGuarantee()).to.eq(rentGuarantee);
+    });
+
+    it("should let the tenant enter the agreement", async () => {
+      const amountUpfront = deposit.add(rentGuarantee).add(rent);
+      const approveTx = await dai.connect(tenant1).approve(rental.address, amountUpfront);
+      await approveTx.wait();
+
+      const tx = await rental.connect(tenant1).enterAgreementAsTenant(landlord.address, deposit, rentGuarantee, rent);
+      const txReceipt = await tx.wait();
+      const blockHash = txReceipt.blockHash;
+      const block = await ethers.provider.getBlock(blockHash);
+
+      const nextRentDueTimestamp = await rental.nextRentDueTimestamp();
+      expect(nextRentDueTimestamp).to.eq(block.timestamp + FOUR_WEEKS_IN_SECS);
+
+      expect(await dai.balanceOf(rental.address)).to.eq(amountUpfront);
     });
   });
 });
