@@ -1020,6 +1020,11 @@
     "@types/sinon-chai" "^3.2.3"
     "@types/web3" "1.0.19"
 
+"@openzeppelin/contracts@^4.0.0-beta.0":
+  version "4.0.0-beta.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.0.0-beta.0.tgz#e16c9f5f667b05e5bf86ecbf32ed92f145a7c890"
+  integrity sha512-O/LC1F04y6PiXuU6oDRmNUIlVwoEC9mS8Lmij6nRt4N1em0fLvirK33QiDc5IgheRZQ7QJ3pyPNCRhNiZNKfLQ==
+
 "@resolver-engine/core@^0.3.3":
   version "0.3.3"
   resolved "https://registry.yarnpkg.com/@resolver-engine/core/-/core-0.3.3.tgz#590f77d85d45bc7ecc4e06c654f41345db6ca967"

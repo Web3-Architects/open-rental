@@ -4,13 +4,13 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-wit
 
 import { RentalAgreement } from "../typechain/RentalAgreement";
 import { expect } from "chai";
-import { BigNumber } from "ethers";
+import { BigNumber, Contract } from "ethers";
 
 const { deployContract } = hre.waffle;
 const { ethers } = hre;
 
 // TODO: to move
-const parseEth = (stringToParse: string) => ethers.utils.parseEther(stringToParse);
+const parseUnits18 = (stringToParse: string) => ethers.utils.parseEther(stringToParse);
 
 describe("Rental Agreement", function () {
   let landlord: SignerWithAddress;
@@ -20,18 +20,31 @@ describe("Rental Agreement", function () {
   let rent: BigNumber;
   let deposit: BigNumber;
   let rentGuarantee: BigNumber;
+  let dai: Contract;
 
   before(async function () {
     [landlord, tenant1] = await ethers.getSigners();
+
+    // deploy an ERC20 token to mock dai
+    const daiFactory = await ethers.getContractFactory("ERC20PresetMinterPauser");
+    dai = await daiFactory.deploy("dai", "DAI");
+    console.log("dai deployed at:", dai.address);
+
+    // Give 10 000 mock dai to tenant1
+    const initialTenant1Balance = parseUnits18("10000");
+    const mintingTx = await dai.mint(tenant1.address, initialTenant1Balance);
+    await mintingTx.wait();
+
+    expect(await dai.balanceOf(tenant1.address)).to.eq(initialTenant1Balance);
   });
 
   beforeEach(async function () {
-    rent = parseEth("0.5");
-    deposit = parseEth("1");
-    rentGuarantee = parseEth("1.5");
+    rent = parseUnits18("500");
+    deposit = parseUnits18("500");
+    rentGuarantee = parseUnits18("1500");
     const rentalArtifact: Artifact = await hre.artifacts.readArtifact("RentalAgreement");
     rental = <RentalAgreement>(
-      await deployContract(landlord, rentalArtifact, [tenant1.address, rent, deposit, rentGuarantee])
+      await deployContract(landlord, rentalArtifact, [tenant1.address, rent, deposit, rentGuarantee, dai.address])
     );
   });
 
