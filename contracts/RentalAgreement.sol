@@ -56,4 +56,9 @@ contract RentalAgreement {
         nextRentDueTimestamp = block.timestamp + 4 weeks;
         // TODO: emit event
     }
+
+    function payRent() public onlyTenant {
+        require(dai.allowance(tenant, address(this)) >= rent, "Not enough allowance");
+        dai.safeTransferFrom(tenant, landlord, rent);
+    }
 }

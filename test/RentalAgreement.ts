@@ -76,4 +76,26 @@ describe("Rental Agreement", function () {
       expect(await dai.balanceOf(rental.address)).to.eq(amountUpfront);
     });
   });
+
+  describe("Renting", () => {
+    it("should have the tenant approve enough allowance first", async () => {
+      const payRentTx = rental.connect(tenant1).payRent();
+
+      await expect(payRentTx).to.be.revertedWith("Not enough allowance");
+    });
+
+    it("should let the tenant pay rent", async () => {
+      const landlordBalanceBefore = await dai.balanceOf(landlord.address);
+      const tenant1BalanceBefore = await dai.balanceOf(tenant1.address);
+
+      const approveTx = await dai.connect(tenant1).approve(rental.address, rent);
+      await approveTx.wait();
+
+      const payRentTx = await rental.connect(tenant1).payRent();
+      await payRentTx.wait();
+
+      expect(await dai.balanceOf(tenant1.address)).to.eq(tenant1BalanceBefore.sub(rent));
+      expect(await dai.balanceOf(landlord.address)).to.eq(landlordBalanceBefore.add(rent));
+    });
+  });
 });
