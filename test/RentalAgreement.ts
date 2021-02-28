@@ -97,5 +97,19 @@ describe("Rental Agreement", function () {
       expect(await dai.balanceOf(tenant1.address)).to.eq(tenant1BalanceBefore.sub(rent));
       expect(await dai.balanceOf(landlord.address)).to.eq(landlordBalanceBefore.add(rent));
     });
+
+    it("should register rent payment and push the next time it is due", async () => {
+      const nextTimeDueBeforePayment = await rental.nextRentDueTimestamp();
+
+      const approveTx = await dai.connect(tenant1).approve(rental.address, rent);
+      await approveTx.wait();
+
+      const payRentTx = await rental.connect(tenant1).payRent();
+      await payRentTx.wait();
+
+      const nextRentDueTimestamp = await rental.nextRentDueTimestamp();
+
+      expect(nextRentDueTimestamp).to.eq(nextTimeDueBeforePayment.add(FOUR_WEEKS_IN_SECS));
+    });
   });
 });
