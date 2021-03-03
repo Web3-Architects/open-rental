@@ -16,7 +16,7 @@ contract RentalAgreement {
     uint256 public rentGuarantee;
     uint256 public nextRentDueTimestamp;
 
-    IERC20 public dai;
+    IERC20 public tokenUsedForPayments;
 
     modifier onlyTenant() {
         require(msg.sender == tenant, "Restricted to the tenant only");
@@ -28,7 +28,7 @@ contract RentalAgreement {
         uint256 _rent,
         uint256 _deposit,
         uint256 _rentGuarantee,
-        address daiAdress
+        address _tokenUsedToPay
     ) {
         require(_tenantAddress != address(0), "Tenant cannot be the zero address");
         require(_rent > 0, "rent cannot be 0");
@@ -38,7 +38,7 @@ contract RentalAgreement {
         rent = _rent;
         deposit = _deposit;
         rentGuarantee = _rentGuarantee;
-        dai = IERC20(daiAdress);
+        tokenUsedForPayments = IERC20(_tokenUsedToPay);
     }
 
     function enterAgreementAsTenant(
@@ -53,16 +53,16 @@ contract RentalAgreement {
         require(_rent == rent, "Incorrect rent amount");
 
         uint256 amountUpfront = deposit + rent + rentGuarantee;
-        dai.safeTransferFrom(tenant, address(this), amountUpfront);
+        tokenUsedForPayments.safeTransferFrom(tenant, address(this), amountUpfront);
 
         nextRentDueTimestamp = block.timestamp + 4 weeks;
         // TODO: emit event
     }
 
     function payRent() public onlyTenant {
-        require(dai.allowance(tenant, address(this)) >= rent, "Not enough allowance");
+        require(tokenUsedForPayments.allowance(tenant, address(this)) >= rent, "Not enough allowance");
 
-        dai.safeTransferFrom(tenant, landlord, rent);
+        tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
 
         nextRentDueTimestamp += 4 weeks;
     }
