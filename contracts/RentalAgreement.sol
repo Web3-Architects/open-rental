@@ -18,6 +18,8 @@ contract RentalAgreement {
 
     IERC20 public tokenUsedForPayments;
 
+    event TenantEnteredAgreement(uint256 depositLocked, uint256 rentGuaranteeLocked, uint256 firstMonthRentPaid);
+
     modifier onlyTenant() {
         require(msg.sender == tenant, "Restricted to the tenant only");
         _;
@@ -52,11 +54,13 @@ contract RentalAgreement {
         require(_rentGuarantee == rentGuarantee, "Incorrect rent guarantee amount");
         require(_rent == rent, "Incorrect rent amount");
 
-        uint256 amountUpfront = deposit + rent + rentGuarantee;
-        tokenUsedForPayments.safeTransferFrom(tenant, address(this), amountUpfront);
+        uint256 deposits = deposit + rentGuarantee;
+        tokenUsedForPayments.safeTransferFrom(tenant, address(this), deposits);
 
+        tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
         nextRentDueTimestamp = block.timestamp + 4 weeks;
-        // TODO: emit event
+
+        emit TenantEnteredAgreement(deposit, rentGuarantee, rent);
     }
 
     function payRent() public onlyTenant {

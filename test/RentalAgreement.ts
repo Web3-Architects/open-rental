@@ -61,8 +61,10 @@ describe("Rental Agreement", function () {
     });
 
     it("should let the tenant enter the agreement", async () => {
-      const amountUpfront = deposit.add(rentGuarantee).add(rent);
-      const approveTx = await dai.connect(tenant1).approve(rental.address, amountUpfront);
+      const deposits = deposit.add(rentGuarantee);
+      const totalUpfront = deposits.add(rent);
+
+      const approveTx = await dai.connect(tenant1).approve(rental.address, totalUpfront);
       await approveTx.wait();
 
       const tx = await rental.connect(tenant1).enterAgreementAsTenant(landlord.address, deposit, rentGuarantee, rent);
@@ -73,7 +75,11 @@ describe("Rental Agreement", function () {
       const nextRentDueTimestamp = await rental.nextRentDueTimestamp();
       expect(nextRentDueTimestamp).to.eq(block.timestamp + FOUR_WEEKS_IN_SECS);
 
-      expect(await dai.balanceOf(rental.address)).to.eq(amountUpfront);
+      expect(await dai.balanceOf(rental.address)).to.eq(deposits);
+      expect(await dai.balanceOf(landlord.address)).to.eq(rent);
+
+      // unfortunately doesn't work this way :/
+      // await expect(tx).to.emit(rental, "TenantEnteredAgreement").withArgs(deposit, rentGuarantee, rent);
     });
   });
 
