@@ -46,7 +46,14 @@ describe("Rental Agreement", function () {
     rentGuarantee = parseUnits18("1500");
     const rentalArtifact: Artifact = await hre.artifacts.readArtifact("RentalAgreement");
     rental = <RentalAgreement>(
-      await deployContract(landlord, rentalArtifact, [tenant1.address, rent, deposit, rentGuarantee, dai.address])
+      await deployContract(landlord, rentalArtifact, [
+        landlord.address,
+        tenant1.address,
+        rent,
+        deposit,
+        rentGuarantee,
+        dai.address,
+      ])
     );
   });
 

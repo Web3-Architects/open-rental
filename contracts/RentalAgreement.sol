@@ -26,6 +26,7 @@ contract RentalAgreement {
     }
 
     constructor(
+        address _landlord,
         address _tenantAddress,
         uint256 _rent,
         uint256 _deposit,
@@ -35,7 +36,7 @@ contract RentalAgreement {
         require(_tenantAddress != address(0), "Tenant cannot be the zero address");
         require(_rent > 0, "rent cannot be 0");
 
-        landlord = msg.sender;
+        landlord = _landlord;
         tenant = _tenantAddress;
         rent = _rent;
         deposit = _deposit;

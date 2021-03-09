@@ -21,6 +21,7 @@
     "test/**/*",
     "typechain/**/*",
     "types/**/*",
+    "utils/**/*",
     "hardhat.config.ts"
   ]
 }
