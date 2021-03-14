@@ -19,9 +19,16 @@ contract RentalAgreement {
     IERC20 public tokenUsedForPayments;
 
     event TenantEnteredAgreement(uint256 depositLocked, uint256 rentGuaranteeLocked, uint256 firstMonthRentPaid);
+    event EndRental(uint256 returnedToTenant, uint256 returnToLandlord);
+    event WithdrawUnpaidRent(uint256 withdrawedFunds);
 
     modifier onlyTenant() {
         require(msg.sender == tenant, "Restricted to the tenant only");
+        _;
+    }
+
+    modifier onlyLandlord() {
+        require(msg.sender == landlord, "Restricted to the landlord only");
         _;
     }
 
@@ -69,5 +76,30 @@ contract RentalAgreement {
         tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
 
         nextRentDueTimestamp += 4 weeks;
+    }
+
+    function withdrawUnpaidRent() public onlyLandlord {
+        require(block.timestamp > nextRentDueTimestamp, "There are no unpaid rent");
+
+        nextRentDueTimestamp += 4 weeks;
+        rentGuarantee -= rent;
+
+        tokenUsedForPayments.safeTransfer(landlord, rent);
+    }
+
+    function endRental(uint256 _amountOfDepositBack) public onlyLandlord {
+        require(_amountOfDepositBack <= deposit, "Invalid deposit amount");
+
+        // TODO: we can do the withdraw logic from AAVE
+
+        uint256 landlordWithdraw = deposit - _amountOfDepositBack;
+        uint256 fundsToReturnToTenant = _amountOfDepositBack + rentGuarantee;
+        tokenUsedForPayments.safeTransfer(tenant, fundsToReturnToTenant);
+        if (_amountOfDepositBack != deposit) {
+            tokenUsedForPayments.safeTransfer(landlord, landlordWithdraw);
+        }
+        deposit = 0;
+        rentGuarantee = 0;
+        emit EndRental(fundsToReturnToTenant, landlordWithdraw);
     }
 }

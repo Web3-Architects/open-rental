@@ -12,6 +12,12 @@ const { ethers } = hre;
 // TODO: to move
 const parseUnits18 = (stringToParse: string) => ethers.utils.parseEther(stringToParse);
 
+const increaseEVMTime = async (time: number) => {
+  await ethers.provider.send("evm_increaseTime", [time]);
+  // @ts-ignore
+  await ethers.provider.send("evm_mine");
+};
+
 const FOUR_WEEKS_IN_SECS = 2419200;
 
 describe("Rental Agreement", function () {
@@ -32,8 +38,8 @@ describe("Rental Agreement", function () {
     dai = await daiFactory.deploy("dai", "DAI");
     console.log("dai deployed at:", dai.address);
 
-    // Give 10 000 mock dai to tenant1
-    const initialTenant1Balance = parseUnits18("10000");
+    // Give 1 000 000 mock dai to tenant1
+    const initialTenant1Balance = parseUnits18("1000000");
     const mintingTx = await dai.mint(tenant1.address, initialTenant1Balance);
     await mintingTx.wait();
 
@@ -116,6 +122,162 @@ describe("Rental Agreement", function () {
       const nextRentDueTimestamp = await rental.nextRentDueTimestamp();
 
       expect(nextRentDueTimestamp).to.eq(nextTimeDueBeforePayment.add(FOUR_WEEKS_IN_SECS));
+    });
+
+    describe("Ending rental", () => {
+      let landlordBalanceBefore: BigNumber;
+      let tenant1BalanceBefore: BigNumber;
+      let rentalBalanceBefore: BigNumber;
+
+      const enterAsTenant = async () => {
+        const amountUpfront = deposit.add(rentGuarantee).add(rent);
+        const approveTx = await dai.connect(tenant1).approve(rental.address, amountUpfront);
+        await approveTx.wait();
+        const tx = await rental.connect(tenant1).enterAgreementAsTenant(landlord.address, deposit, rentGuarantee, rent);
+        await tx.wait();
+      };
+
+      beforeEach(async () => {
+        // Given
+        await enterAsTenant();
+
+        landlordBalanceBefore = await dai.balanceOf(landlord.address);
+        tenant1BalanceBefore = await dai.balanceOf(tenant1.address);
+        rentalBalanceBefore = await dai.balanceOf(rental.address);
+      });
+
+      it("should send back the expected deposit", async () => {
+        // When
+        const endRentalTx = await rental.connect(landlord).endRental(parseUnits18("250"));
+        await endRentalTx.wait();
+
+        // Expect
+        const expectedTenantBalance = tenant1BalanceBefore.add(parseUnits18("250")).add(rentGuarantee);
+        const expectedLandlordBalance = landlordBalanceBefore.add(parseUnits18("250"));
+        const expectedContractBalance = rentalBalanceBefore.sub(deposit).sub(rentGuarantee);
+
+        expect(await dai.balanceOf(tenant1.address)).to.eq(expectedTenantBalance);
+        expect(await dai.balanceOf(landlord.address)).to.eq(expectedLandlordBalance);
+        expect(await dai.balanceOf(rental.address)).to.eq(expectedContractBalance);
+        expect(await rental.deposit()).to.eq(parseUnits18("0"));
+        expect(await rental.rentGuarantee()).to.eq(parseUnits18("0"));
+      });
+
+      it("should not send money to the landlord if we want to refund the full despot", async () => {
+        // When
+        const endRentalTx = await rental.connect(landlord).endRental(parseUnits18("500"));
+        await endRentalTx.wait();
+
+        // Expect
+        const expectedTenantBalance = tenant1BalanceBefore.add(deposit).add(rentGuarantee);
+        expect(await dai.balanceOf(tenant1.address)).to.eq(expectedTenantBalance);
+        expect(await dai.balanceOf(landlord.address)).to.eq(landlordBalanceBefore);
+        expect(await dai.balanceOf(rental.address)).to.eq(parseUnits18("0"));
+      });
+
+      it("should raise an error if we ask more money than the deposit", async () => {
+        // When
+        const endRentalTx = rental.connect(landlord).endRental(deposit.add(1));
+
+        // Expect
+        await expect(endRentalTx).to.be.revertedWith("Invalid deposit amount");
+      });
+    });
+
+    describe("Withdraw unpaid rent", () => {
+      let landlordBalanceBefore: BigNumber;
+      let tenant1BalanceBefore: BigNumber;
+      let rentalBalanceBefore: BigNumber;
+
+      const enterAsTenant = async () => {
+        const amountUpfront = deposit.add(rentGuarantee).add(rent);
+        const approveTx = await dai.connect(tenant1).approve(rental.address, amountUpfront);
+        await approveTx.wait();
+        const tx = await rental.connect(tenant1).enterAgreementAsTenant(landlord.address, deposit, rentGuarantee, rent);
+        await tx.wait();
+      };
+
+      beforeEach(async () => {
+        // Given
+        await enterAsTenant();
+
+        landlordBalanceBefore = await dai.balanceOf(landlord.address);
+        tenant1BalanceBefore = await dai.balanceOf(tenant1.address);
+        rentalBalanceBefore = await dai.balanceOf(rental.address);
+      });
+
+      it("should detect when there are no unpaid rent", async () => {
+        // When
+        const withdrawUnpaidRentTx = rental.connect(landlord).withdrawUnpaidRent();
+
+        // Expect
+        await expect(withdrawUnpaidRentTx).to.be.revertedWith("There are no unpaid rent");
+      });
+
+      it("should not withdraw more than the missing months", async () => {
+        // When
+
+        // Go 1 month after the next due rent
+        await increaseEVMTime(FOUR_WEEKS_IN_SECS);
+        await increaseEVMTime(1000);
+
+        // Withdraw unpaid rent of 1 month
+        const withdrawUnpaidRentTx = await rental.connect(landlord).withdrawUnpaidRent();
+        await withdrawUnpaidRentTx.wait();
+        const rentGuaranteeAfterFirstCall = await rental.rentGuarantee();
+
+        // Go 3 month after the next due rent
+        await increaseEVMTime(FOUR_WEEKS_IN_SECS);
+        await increaseEVMTime(FOUR_WEEKS_IN_SECS);
+
+        // Withdraw unpaid rent of month 2
+        const withdrawUnpaidRentSecondTx = await rental.connect(landlord).withdrawUnpaidRent();
+        await withdrawUnpaidRentSecondTx.wait();
+        const rentGuaranteeAfterSecondCall = await rental.rentGuarantee();
+
+        // Withdraw unpaid rent of month 3
+        const withdrawUnpaidRentThirdTx = await rental.connect(landlord).withdrawUnpaidRent();
+        await withdrawUnpaidRentThirdTx.wait();
+        const rentGuaranteeAfterThirdCall = await rental.rentGuarantee();
+
+        // Expect
+        const totalAmountWithdrawed = rent.mul(3);
+        const expectedLandlordBalance = landlordBalanceBefore.add(totalAmountWithdrawed);
+        const expectedContractBalance = rentalBalanceBefore.sub(totalAmountWithdrawed);
+
+        expect(await dai.balanceOf(tenant1.address)).to.eq(tenant1BalanceBefore);
+        expect(await dai.balanceOf(landlord.address)).to.eq(expectedLandlordBalance);
+        expect(await dai.balanceOf(rental.address)).to.eq(expectedContractBalance);
+        expect(rentGuaranteeAfterFirstCall).to.eq(parseUnits18("1000"));
+        expect(rentGuaranteeAfterSecondCall).to.eq(parseUnits18("500"));
+        expect(rentGuaranteeAfterThirdCall).to.eq(parseUnits18("0"));
+      });
+
+      it("should at least a full month late to withdraw the unpaid rent", async () => {
+        // When
+        await increaseEVMTime(FOUR_WEEKS_IN_SECS);
+        await increaseEVMTime(FOUR_WEEKS_IN_SECS);
+
+        // When
+        const withdrawUnpaidRentTx = await rental.connect(landlord).withdrawUnpaidRent();
+        await withdrawUnpaidRentTx.wait();
+
+        // Expect
+        const expectedLandlordBalance = landlordBalanceBefore.add(rent);
+        const expectedContractBalance = rentalBalanceBefore.sub(rent);
+
+        expect(await dai.balanceOf(tenant1.address)).to.eq(tenant1BalanceBefore);
+        expect(await dai.balanceOf(landlord.address)).to.eq(expectedLandlordBalance);
+        expect(await dai.balanceOf(rental.address)).to.eq(expectedContractBalance);
+      });
+
+      it("should only be callable by the landlord", async () => {
+        // When
+        const withdrawUnpaidRentTx = rental.connect(tenant1).withdrawUnpaidRent();
+
+        // Expect
+        await expect(withdrawUnpaidRentTx).to.be.revertedWith("Restricted to the landlord only");
+      });
     });
   });
 });
