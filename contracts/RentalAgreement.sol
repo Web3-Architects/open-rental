@@ -6,6 +6,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "hardhat/console.sol";
 
+import "./ILendingService.sol";
+
 contract RentalAgreement {
     using SafeERC20 for IERC20;
 
@@ -17,6 +19,7 @@ contract RentalAgreement {
     uint256 public nextRentDueTimestamp;
 
     IERC20 public tokenUsedForPayments;
+    ILendingService public lendingPool;
 
     event TenantEnteredAgreement(uint256 depositLocked, uint256 rentGuaranteeLocked, uint256 firstMonthRentPaid);
     event EndRental(uint256 returnedToTenant, uint256 returnToLandlord);
@@ -38,7 +41,8 @@ contract RentalAgreement {
         uint256 _rent,
         uint256 _deposit,
         uint256 _rentGuarantee,
-        address _tokenUsedToPay
+        address _tokenUsedToPay,
+        address _lendingPool
     ) {
         require(_tenantAddress != address(0), "Tenant cannot be the zero address");
         require(_rent > 0, "rent cannot be 0");
@@ -49,6 +53,7 @@ contract RentalAgreement {
         deposit = _deposit;
         rentGuarantee = _rentGuarantee;
         tokenUsedForPayments = IERC20(_tokenUsedToPay);
+        lendingPool = ILendingService(_lendingPool);
     }
 
     function enterAgreementAsTenant(
@@ -64,7 +69,8 @@ contract RentalAgreement {
 
         uint256 deposits = deposit + rentGuarantee;
         tokenUsedForPayments.safeTransferFrom(tenant, address(this), deposits);
-
+        tokenUsedForPayments.approve(address(lendingPool), deposits);
+        lendingPool.deposit(deposits);
         tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
         nextRentDueTimestamp = block.timestamp + 4 weeks;
 
@@ -82,20 +88,26 @@ contract RentalAgreement {
     function withdrawUnpaidRent() public onlyLandlord {
         require(block.timestamp > nextRentDueTimestamp, "There are no unpaid rent");
 
+
         nextRentDueTimestamp += 4 weeks;
         rentGuarantee -= rent;
 
+        lendingPool.withdraw(rent);
         tokenUsedForPayments.safeTransfer(landlord, rent);
     }
 
     function endRental(uint256 _amountOfDepositBack) public onlyLandlord {
         require(_amountOfDepositBack <= deposit, "Invalid deposit amount");
 
-        // TODO: we can do the withdraw logic from AAVE
+        uint256 depositedOnLendingService = lendingPool.depositedBalance();
+        uint256 beforeWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
+        lendingPool.withdrawCapitalAndInterests();
+        uint256 afterWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
+        uint256 interestEarned = (afterWithdrawBalance - depositedOnLendingService) - beforeWithdrawBalance;
 
         uint256 landlordWithdraw = deposit - _amountOfDepositBack;
         uint256 fundsToReturnToTenant = _amountOfDepositBack + rentGuarantee;
-        tokenUsedForPayments.safeTransfer(tenant, fundsToReturnToTenant);
+        tokenUsedForPayments.safeTransfer(tenant, fundsToReturnToTenant + interestEarned);
         if (_amountOfDepositBack != deposit) {
             tokenUsedForPayments.safeTransfer(landlord, landlordWithdraw);
         }

@@ -3,8 +3,10 @@ import { Artifact } from "hardhat/types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
 import { RentalAgreement } from "../typechain/RentalAgreement";
+import { MockLendingService } from "../typechain/MockLendingService";
 import { expect } from "chai";
 import { BigNumber, Contract } from "ethers";
+import { deployMockLendingService } from "./utils/mockLendingService";
 
 const { deployContract } = hre.waffle;
 const { ethers } = hre;
@@ -24,6 +26,7 @@ describe("Rental Agreement", function () {
   let landlord: SignerWithAddress;
   let tenant1: SignerWithAddress;
   let rental: RentalAgreement;
+  let lendingService: MockLendingService;
 
   let rent: BigNumber;
   let deposit: BigNumber;
@@ -50,6 +53,9 @@ describe("Rental Agreement", function () {
     rent = parseUnits18("500");
     deposit = parseUnits18("500");
     rentGuarantee = parseUnits18("1500");
+
+    lendingService = await deployMockLendingService(landlord, dai)
+
     const rentalArtifact: Artifact = await hre.artifacts.readArtifact("RentalAgreement");
     rental = <RentalAgreement>(
       await deployContract(landlord, rentalArtifact, [
@@ -59,8 +65,12 @@ describe("Rental Agreement", function () {
         deposit,
         rentGuarantee,
         dai.address,
+        lendingService.address,
       ])
     );
+
+    const transferOwnershipTx = await lendingService.connect(landlord).transferOwnership(rental.address);
+    await transferOwnershipTx.wait();
   });
 
   describe("Init", () => {
@@ -88,11 +98,9 @@ describe("Rental Agreement", function () {
       const nextRentDueTimestamp = await rental.nextRentDueTimestamp();
       expect(nextRentDueTimestamp).to.eq(block.timestamp + FOUR_WEEKS_IN_SECS);
 
-      expect(await dai.balanceOf(rental.address)).to.eq(deposits);
+      expect(await dai.balanceOf(lendingService.address)).to.eq(deposits);
+      expect(await dai.balanceOf(rental.address)).to.eq(parseUnits18("0"));
       expect(await dai.balanceOf(landlord.address)).to.eq(rent);
-
-      // unfortunately doesn't work this way :/
-      // await expect(tx).to.emit(rental, "TenantEnteredAgreement").withArgs(deposit, rentGuarantee, rent);
     });
   });
 
@@ -135,6 +143,7 @@ describe("Rental Agreement", function () {
       let landlordBalanceBefore: BigNumber;
       let tenant1BalanceBefore: BigNumber;
       let rentalBalanceBefore: BigNumber;
+      let lendingServiceBalanceBefore: BigNumber;
 
       const enterAsTenant = async () => {
         const amountUpfront = deposit.add(rentGuarantee).add(rent);
@@ -151,6 +160,7 @@ describe("Rental Agreement", function () {
         landlordBalanceBefore = await dai.balanceOf(landlord.address);
         tenant1BalanceBefore = await dai.balanceOf(tenant1.address);
         rentalBalanceBefore = await dai.balanceOf(rental.address);
+        lendingServiceBalanceBefore = await dai.balanceOf(lendingService.address);
       });
 
       it("should send back the expected deposit", async () => {
@@ -161,11 +171,11 @@ describe("Rental Agreement", function () {
         // Expect
         const expectedTenantBalance = tenant1BalanceBefore.add(parseUnits18("250")).add(rentGuarantee);
         const expectedLandlordBalance = landlordBalanceBefore.add(parseUnits18("250"));
-        const expectedContractBalance = rentalBalanceBefore.sub(deposit).sub(rentGuarantee);
 
         expect(await dai.balanceOf(tenant1.address)).to.eq(expectedTenantBalance);
         expect(await dai.balanceOf(landlord.address)).to.eq(expectedLandlordBalance);
-        expect(await dai.balanceOf(rental.address)).to.eq(expectedContractBalance);
+        expect(await dai.balanceOf(rental.address)).to.eq(parseUnits18("0"));
+        expect(await dai.balanceOf(lendingService.address)).to.eq(parseUnits18("0"));
         expect(await rental.deposit()).to.eq(parseUnits18("0"));
         expect(await rental.rentGuarantee()).to.eq(parseUnits18("0"));
       });
@@ -177,6 +187,23 @@ describe("Rental Agreement", function () {
 
         // Expect
         const expectedTenantBalance = tenant1BalanceBefore.add(deposit).add(rentGuarantee);
+        expect(await dai.balanceOf(tenant1.address)).to.eq(expectedTenantBalance);
+        expect(await dai.balanceOf(landlord.address)).to.eq(landlordBalanceBefore);
+        expect(await dai.balanceOf(rental.address)).to.eq(parseUnits18("0"));
+      });
+
+      it("should return the interests to the tenant", async () => {
+        // Given
+        const interestAmount = parseUnits18("42");
+        const mintingTx = await dai.mint(lendingService.address, interestAmount);
+        await mintingTx.wait();
+
+        // When
+        const endRentalTx = await rental.connect(landlord).endRental(parseUnits18("500"));
+        await endRentalTx.wait();
+
+        // Expect
+        const expectedTenantBalance = tenant1BalanceBefore.add(deposit).add(rentGuarantee).add(interestAmount);
         expect(await dai.balanceOf(tenant1.address)).to.eq(expectedTenantBalance);
         expect(await dai.balanceOf(landlord.address)).to.eq(landlordBalanceBefore);
         expect(await dai.balanceOf(rental.address)).to.eq(parseUnits18("0"));
@@ -195,6 +222,7 @@ describe("Rental Agreement", function () {
       let landlordBalanceBefore: BigNumber;
       let tenant1BalanceBefore: BigNumber;
       let rentalBalanceBefore: BigNumber;
+      let lendingServiceBalanceBefore: BigNumber;
 
       const enterAsTenant = async () => {
         const amountUpfront = deposit.add(rentGuarantee).add(rent);
@@ -211,6 +239,7 @@ describe("Rental Agreement", function () {
         landlordBalanceBefore = await dai.balanceOf(landlord.address);
         tenant1BalanceBefore = await dai.balanceOf(tenant1.address);
         rentalBalanceBefore = await dai.balanceOf(rental.address);
+        lendingServiceBalanceBefore = await dai.balanceOf(lendingService.address);
       });
 
       it("should detect when there are no unpaid rent", async () => {
@@ -250,11 +279,12 @@ describe("Rental Agreement", function () {
         // Expect
         const totalAmountWithdrawed = rent.mul(3);
         const expectedLandlordBalance = landlordBalanceBefore.add(totalAmountWithdrawed);
-        const expectedContractBalance = rentalBalanceBefore.sub(totalAmountWithdrawed);
+        const expectedLendingServiceBalance = lendingServiceBalanceBefore.sub(totalAmountWithdrawed);
 
         expect(await dai.balanceOf(tenant1.address)).to.eq(tenant1BalanceBefore);
         expect(await dai.balanceOf(landlord.address)).to.eq(expectedLandlordBalance);
-        expect(await dai.balanceOf(rental.address)).to.eq(expectedContractBalance);
+        expect(await dai.balanceOf(rental.address)).to.eq(parseUnits18("0"));
+        expect(await dai.balanceOf(lendingService.address)).to.eq(expectedLendingServiceBalance);
         expect(rentGuaranteeAfterFirstCall).to.eq(parseUnits18("1000"));
         expect(rentGuaranteeAfterSecondCall).to.eq(parseUnits18("500"));
         expect(rentGuaranteeAfterThirdCall).to.eq(parseUnits18("0"));
@@ -271,11 +301,12 @@ describe("Rental Agreement", function () {
 
         // Expect
         const expectedLandlordBalance = landlordBalanceBefore.add(rent);
-        const expectedContractBalance = rentalBalanceBefore.sub(rent);
+        const expectedLendingServiceBalance = lendingServiceBalanceBefore.sub(rent);
 
         expect(await dai.balanceOf(tenant1.address)).to.eq(tenant1BalanceBefore);
         expect(await dai.balanceOf(landlord.address)).to.eq(expectedLandlordBalance);
-        expect(await dai.balanceOf(rental.address)).to.eq(expectedContractBalance);
+        expect(await dai.balanceOf(rental.address)).to.eq(parseUnits18("0"));
+        expect(await dai.balanceOf(lendingService.address)).to.eq(expectedLendingServiceBalance);
       });
 
       it("should only be callable by the landlord", async () => {
