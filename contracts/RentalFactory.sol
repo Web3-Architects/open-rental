@@ -13,11 +13,11 @@ contract RentalFactory {
         uint256 _rent,
         uint256 _deposit,
         uint256 _rentGuarantee,
-        address _tokenUsedToPay
+        address _tokenUsedToPay,
+        address _lendingService
     ) public {
-        // TODO: we must pass the lending service address, but for now we do not create it in the factory
         RentalAgreement newRental =
-            new RentalAgreement(msg.sender, _tenantAddress, _rent, _deposit, _rentGuarantee, _tokenUsedToPay, msg.sender);
+            new RentalAgreement(msg.sender, _tenantAddress, _rent, _deposit, _rentGuarantee, _tokenUsedToPay, _lendingService);
 
         emit NewRentalDeployed(address(newRental), msg.sender, _tenantAddress);
         rentalsByOwner[msg.sender].push(newRental);

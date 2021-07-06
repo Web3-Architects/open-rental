@@ -4,9 +4,10 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-wit
 import { expect } from "chai";
 import { Contract } from "ethers";
 
-import { RentalFactory } from "../typechain";
+import { MockLendingService, RentalFactory } from "../typechain";
 import { parseUnits18 } from "../utils/parseUnits";
 import deployMockERC20 from "./utils/mockERC20";
+import { deployMockLendingService } from "./utils/mockLendingService";
 
 const { deployContract } = hre.waffle;
 const { ethers } = hre;
@@ -18,6 +19,7 @@ describe("RentalFactory", () => {
   let tenant2: SignerWithAddress;
   let rentalFactory: RentalFactory;
   let dai: Contract;
+  let lendingService: MockLendingService;
 
   const rent = parseUnits18("500");
   const deposit = parseUnits18("500");
@@ -36,10 +38,15 @@ describe("RentalFactory", () => {
     rentalFactory = <RentalFactory>await deployContract(admin, rentalFactoryArtifact);
   });
 
+  beforeEach(async () => {
+    lendingService = await deployMockLendingService(landlord, dai)
+
+  })
+
   it("should create a new RentalAgreement", async () => {
     const createRentalTx = await rentalFactory
       .connect(landlord)
-      .createNewRental(tenant1.address, rent, deposit, rentGuarantee, dai.address);
+      .createNewRental(tenant1.address, rent, deposit, rentGuarantee, dai.address, lendingService.address);
     await createRentalTx.wait();
 
     // Get the deployed RentalAgreement smart contract
@@ -57,7 +64,7 @@ describe("RentalFactory", () => {
   it("should emit an event", async () => {
     // Deploy a second rental
     await expect(
-      rentalFactory.connect(landlord).createNewRental(tenant1.address, rent, deposit, rentGuarantee, dai.address),
+      rentalFactory.connect(landlord).createNewRental(tenant1.address, rent, deposit, rentGuarantee, dai.address, lendingService.address),
     ).to.emit(rentalFactory, "NewRentalDeployed");
   });
 
@@ -77,7 +84,7 @@ describe("RentalFactory", () => {
     // When
     const createRentalTx = await rentalFactory
       .connect(landlord)
-      .createNewRental(tenant2.address, rent3, deposit3, rentGuarantee3, dai.address);
+      .createNewRental(tenant2.address, rent3, deposit3, rentGuarantee3, dai.address, lendingService.address);
     await createRentalTx.wait();
 
     // Get this third rental
