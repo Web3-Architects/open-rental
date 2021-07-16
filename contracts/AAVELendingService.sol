@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ILendingPool } from "../interfaces/aave/ILendingPool.sol";
 import "./ILendingService.sol";
 
-
 contract AAVELendingService is ILendingService {
     using SafeERC20 for IERC20;
     // this shouldn't be harcoded normally
@@ -31,7 +30,6 @@ contract AAVELendingService is ILendingService {
     }
 
     function transferOwnership(address newOwner) public onlyOwner {
-        require(msg.sender == owner, "Only the owner can call this method");
         owner = payable(newOwner);
     }
 
@@ -47,7 +45,7 @@ contract AAVELendingService is ILendingService {
 
     function withdraw(uint256 amount) external override(ILendingService) onlyOwner {
         uint256 aTokenBalance = aToken.balanceOf(address(this));
-        // Compute the amount to withdraw, taking into account accrued interest 
+        // Compute the amount to withdraw, taking into account accrued interest
         uint256 tokenAmountToWithdraw = (amount * aTokenBalance) / depositedAmountBalance;
 
         // Approve the aToken contract to pull the amount to withdraw
@@ -69,7 +67,7 @@ contract AAVELendingService is ILendingService {
         depositedAmountBalance = 0;
     }
 
-    function depositedBalance() external override(ILendingService) view returns (uint256) {
+    function depositedBalance() external view override(ILendingService) returns (uint256) {
         return depositedAmountBalance;
     }
 
