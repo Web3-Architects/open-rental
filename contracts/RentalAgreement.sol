@@ -19,7 +19,7 @@ contract RentalAgreement {
     uint256 public nextRentDueTimestamp;
 
     IERC20 public tokenUsedForPayments;
-    ILendingService public lendingPool;
+    ILendingService public lendingService;
 
     event TenantEnteredAgreement(uint256 depositLocked, uint256 rentGuaranteeLocked, uint256 firstMonthRentPaid);
     event EndRental(uint256 returnedToTenant, uint256 returnToLandlord);
@@ -42,7 +42,7 @@ contract RentalAgreement {
         uint256 _deposit,
         uint256 _rentGuarantee,
         address _tokenUsedToPay,
-        address _lendingPool
+        address _lendingService
     ) {
         require(_tenantAddress != address(0), "Tenant cannot be the zero address");
         require(_rent > 0, "rent cannot be 0");
@@ -53,7 +53,7 @@ contract RentalAgreement {
         deposit = _deposit;
         rentGuarantee = _rentGuarantee;
         tokenUsedForPayments = IERC20(_tokenUsedToPay);
-        lendingPool = ILendingService(_lendingPool);
+        lendingService = ILendingService(_lendingService);
     }
 
     function enterAgreementAsTenant(
@@ -69,8 +69,8 @@ contract RentalAgreement {
 
         uint256 deposits = deposit + rentGuarantee;
         tokenUsedForPayments.safeTransferFrom(tenant, address(this), deposits);
-        tokenUsedForPayments.approve(address(lendingPool), deposits);
-        lendingPool.deposit(deposits);
+        tokenUsedForPayments.approve(address(lendingService), deposits);
+        lendingService.deposit(deposits);
         tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
         nextRentDueTimestamp = block.timestamp + 4 weeks;
 
@@ -91,16 +91,16 @@ contract RentalAgreement {
         nextRentDueTimestamp += 4 weeks;
         rentGuarantee -= rent;
 
-        lendingPool.withdraw(rent);
+        lendingService.withdraw(rent);
         tokenUsedForPayments.safeTransfer(landlord, rent);
     }
 
     function endRental(uint256 _amountOfDepositBack) public onlyLandlord {
         require(_amountOfDepositBack <= deposit, "Invalid deposit amount");
 
-        uint256 depositedOnLendingService = lendingPool.depositedBalance();
+        uint256 depositedOnLendingService = lendingService.depositedBalance();
         uint256 beforeWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
-        lendingPool.withdrawCapitalAndInterests();
+        lendingService.withdrawCapitalAndInterests();
         uint256 afterWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
         uint256 interestEarned = (afterWithdrawBalance - depositedOnLendingService) - beforeWithdrawBalance;
 
