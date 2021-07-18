@@ -7,7 +7,8 @@ import { parseUnits18 } from "../utils/parseUnits";
 
 const kovanDaiAddress = "0xFf795577d9AC8bD7D90Ee22b6C1703490b6512FD";
 
-describe("Aave Lending Service (Kovan)", function () {
+// Switch hardhat network to Kovan to test against AAVE on Kovan
+describe.skip("Aave Lending Service (Kovan)", function () {
   this.timeout(0);
   let signer1: SignerWithAddress;
   let _signer2: SignerWithAddress;
