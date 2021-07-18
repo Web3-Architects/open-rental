@@ -88,7 +88,6 @@ contract RentalAgreement {
     function withdrawUnpaidRent() public onlyLandlord {
         require(block.timestamp > nextRentDueTimestamp, "There are no unpaid rent");
 
-
         nextRentDueTimestamp += 4 weeks;
         rentGuarantee -= rent;
 
@@ -105,12 +104,16 @@ contract RentalAgreement {
         uint256 afterWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
         uint256 interestEarned = (afterWithdrawBalance - depositedOnLendingService) - beforeWithdrawBalance;
 
+        // compute and transfer funds to tenant
+        uint256 fundsToReturnToTenant = _amountOfDepositBack + rentGuarantee + interestEarned;
+        tokenUsedForPayments.safeTransfer(tenant, fundsToReturnToTenant);
+
         uint256 landlordWithdraw = deposit - _amountOfDepositBack;
-        uint256 fundsToReturnToTenant = _amountOfDepositBack + rentGuarantee;
-        tokenUsedForPayments.safeTransfer(tenant, fundsToReturnToTenant + interestEarned);
-        if (_amountOfDepositBack != deposit) {
+        // landlord is keeping some of the deposit
+        if (landlordWithdraw > 0) {
             tokenUsedForPayments.safeTransfer(landlord, landlordWithdraw);
         }
+
         deposit = 0;
         rentGuarantee = 0;
         emit EndRental(fundsToReturnToTenant, landlordWithdraw);
