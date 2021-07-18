@@ -7,7 +7,7 @@ import { parseUnits18 } from "../utils/parseUnits";
 
 const kovanDaiAddress = "0xFf795577d9AC8bD7D90Ee22b6C1703490b6512FD";
 
-describe("Aave Lending Service", function () {
+describe("Aave Lending Service (Kovan)", function () {
   this.timeout(0);
   let signer1: SignerWithAddress;
   let _signer2: SignerWithAddress;
@@ -102,7 +102,9 @@ describe("Aave Lending Service", function () {
       console.log(`aTokenBalanceOfAaveLendingAfterDeposit`, aTokenBalanceOfAaveLendingAfterWithdraw.toString());
       const daiBalance = await dai.balanceOf(signer1.address);
 
-      expect(aTokenBalanceOfAaveLendingAfterWithdraw).to.be.at.least(aTokenBalanceOfAaveLendingAfterWithdraw.div(parseUnits18("2")));
+      expect(aTokenBalanceOfAaveLendingAfterWithdraw).to.be.at.least(
+        aTokenBalanceOfAaveLendingAfterWithdraw.div(parseUnits18("2")),
+      );
       expect(daiBalance).to.be.at.least(parseUnits18("25"));
     });
   });
