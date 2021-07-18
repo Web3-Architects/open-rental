@@ -22,6 +22,7 @@ contract RentalAgreement {
     ILendingService public lendingService;
 
     event TenantEnteredAgreement(uint256 depositLocked, uint256 rentGuaranteeLocked, uint256 firstMonthRentPaid);
+    event RentPaid(address tenant, uint256 amount, uint256 timestamp);
     event EndRental(uint256 returnedToTenant, uint256 returnToLandlord);
     event WithdrawUnpaidRent(uint256 withdrawedFunds);
 
@@ -89,6 +90,8 @@ contract RentalAgreement {
         tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
 
         nextRentDueTimestamp += 4 weeks;
+
+        emit RentPaid(tenant, rent, block.timestamp);
     }
 
     function withdrawUnpaidRent() public onlyLandlord {
