@@ -8,15 +8,15 @@ import "./ILendingService.sol";
 
 contract AAVELendingService is ILendingService {
     using SafeERC20 for IERC20;
+
+    IERC20 public aToken;
+    IERC20 public tokenUsedForPayments;
     // this shouldn't be harcoded normally
     ILendingPool internal aaveLendingPool = ILendingPool(0xE0fBa4Fc209b4948668006B2bE61711b7f465bAe);
     // this shouldn't be harcoded normally
     address public aDaiTokenAddress = 0xdCf0aF9e59C002FA3AA091a46196b37530FD48a8;
     address payable public owner;
     uint256 public depositedAmountBalance;
-
-    IERC20 public aToken;
-    IERC20 public tokenUsedForPayments;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Restricted to the owner only");
