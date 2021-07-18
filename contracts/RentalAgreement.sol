@@ -68,10 +68,16 @@ contract RentalAgreement {
         require(_rent == rent, "Incorrect rent amount");
 
         uint256 deposits = deposit + rentGuarantee;
+        // Get deposits from tenant
         tokenUsedForPayments.safeTransferFrom(tenant, address(this), deposits);
+
+        // Deposit the deposits :)
         tokenUsedForPayments.approve(address(lendingService), deposits);
         lendingService.deposit(deposits);
+
+        // Transfer first month rent
         tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
+
         nextRentDueTimestamp = block.timestamp + 4 weeks;
 
         emit TenantEnteredAgreement(deposit, rentGuarantee, rent);
@@ -89,6 +95,7 @@ contract RentalAgreement {
         require(block.timestamp > nextRentDueTimestamp, "There are no unpaid rent");
 
         nextRentDueTimestamp += 4 weeks;
+
         rentGuarantee -= rent;
 
         lendingService.withdraw(rent);
@@ -98,18 +105,21 @@ contract RentalAgreement {
     function endRental(uint256 _amountOfDepositBack) public onlyLandlord {
         require(_amountOfDepositBack <= deposit, "Invalid deposit amount");
 
+        // Get the amount of capital in the lending service
         uint256 depositedOnLendingService = lendingService.depositedBalance();
+
         uint256 beforeWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
         lendingService.withdrawCapitalAndInterests();
         uint256 afterWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
+
         uint256 interestEarned = (afterWithdrawBalance - depositedOnLendingService) - beforeWithdrawBalance;
 
-        // compute and transfer funds to tenant
+        // Compute and transfer funds to tenant
         uint256 fundsToReturnToTenant = _amountOfDepositBack + rentGuarantee + interestEarned;
         tokenUsedForPayments.safeTransfer(tenant, fundsToReturnToTenant);
 
         uint256 landlordWithdraw = deposit - _amountOfDepositBack;
-        // landlord is keeping some of the deposit
+        // The landlord is keeping some of the deposit
         if (landlordWithdraw > 0) {
             tokenUsedForPayments.safeTransfer(landlord, landlordWithdraw);
         }
