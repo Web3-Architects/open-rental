@@ -19,9 +19,10 @@ contract RentalAgreement {
     uint256 public nextRentDueTimestamp;
 
     IERC20 public tokenUsedForPayments;
-    ILendingService public lendingPool;
+    ILendingService public lendingService;
 
     event TenantEnteredAgreement(uint256 depositLocked, uint256 rentGuaranteeLocked, uint256 firstMonthRentPaid);
+    event RentPaid(address tenant, uint256 amount, uint256 timestamp);
     event EndRental(uint256 returnedToTenant, uint256 returnToLandlord);
     event WithdrawUnpaidRent(uint256 withdrawedFunds);
 
@@ -42,7 +43,7 @@ contract RentalAgreement {
         uint256 _deposit,
         uint256 _rentGuarantee,
         address _tokenUsedToPay,
-        address _lendingPool
+        address _lendingService
     ) {
         require(_tenantAddress != address(0), "Tenant cannot be the zero address");
         require(_rent > 0, "rent cannot be 0");
@@ -53,7 +54,7 @@ contract RentalAgreement {
         deposit = _deposit;
         rentGuarantee = _rentGuarantee;
         tokenUsedForPayments = IERC20(_tokenUsedToPay);
-        lendingPool = ILendingService(_lendingPool);
+        lendingService = ILendingService(_lendingService);
     }
 
     function enterAgreementAsTenant(
@@ -68,10 +69,16 @@ contract RentalAgreement {
         require(_rent == rent, "Incorrect rent amount");
 
         uint256 deposits = deposit + rentGuarantee;
+        // Get deposits from tenant
         tokenUsedForPayments.safeTransferFrom(tenant, address(this), deposits);
-        tokenUsedForPayments.approve(address(lendingPool), deposits);
-        lendingPool.deposit(deposits);
+
+        // Deposit the deposits :)
+        tokenUsedForPayments.approve(address(lendingService), deposits);
+        lendingService.deposit(deposits);
+
+        // Transfer first month rent
         tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
+
         nextRentDueTimestamp = block.timestamp + 4 weeks;
 
         emit TenantEnteredAgreement(deposit, rentGuarantee, rent);
@@ -83,34 +90,43 @@ contract RentalAgreement {
         tokenUsedForPayments.safeTransferFrom(tenant, landlord, rent);
 
         nextRentDueTimestamp += 4 weeks;
+
+        emit RentPaid(tenant, rent, block.timestamp);
     }
 
     function withdrawUnpaidRent() public onlyLandlord {
         require(block.timestamp > nextRentDueTimestamp, "There are no unpaid rent");
 
-
         nextRentDueTimestamp += 4 weeks;
+
         rentGuarantee -= rent;
 
-        lendingPool.withdraw(rent);
+        lendingService.withdraw(rent);
         tokenUsedForPayments.safeTransfer(landlord, rent);
     }
 
     function endRental(uint256 _amountOfDepositBack) public onlyLandlord {
         require(_amountOfDepositBack <= deposit, "Invalid deposit amount");
 
-        uint256 depositedOnLendingService = lendingPool.depositedBalance();
+        // Get the amount of capital in the lending service
+        uint256 depositedOnLendingService = lendingService.depositedBalance();
+
         uint256 beforeWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
-        lendingPool.withdrawCapitalAndInterests();
+        lendingService.withdrawCapitalAndInterests();
         uint256 afterWithdrawBalance = tokenUsedForPayments.balanceOf(address(this));
+
         uint256 interestEarned = (afterWithdrawBalance - depositedOnLendingService) - beforeWithdrawBalance;
 
+        // Compute and transfer funds to tenant
+        uint256 fundsToReturnToTenant = _amountOfDepositBack + rentGuarantee + interestEarned;
+        tokenUsedForPayments.safeTransfer(tenant, fundsToReturnToTenant);
+
         uint256 landlordWithdraw = deposit - _amountOfDepositBack;
-        uint256 fundsToReturnToTenant = _amountOfDepositBack + rentGuarantee;
-        tokenUsedForPayments.safeTransfer(tenant, fundsToReturnToTenant + interestEarned);
-        if (_amountOfDepositBack != deposit) {
+        // The landlord is keeping some of the deposit
+        if (landlordWithdraw > 0) {
             tokenUsedForPayments.safeTransfer(landlord, landlordWithdraw);
         }
+
         deposit = 0;
         rentGuarantee = 0;
         emit EndRental(fundsToReturnToTenant, landlordWithdraw);
