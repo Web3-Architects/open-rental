@@ -30,6 +30,7 @@ contract AAVELendingService is ILendingService {
     }
 
     function transferOwnership(address newOwner) public onlyOwner {
+        require(newOwner != address(0), "new owner is the zero address");
         owner = payable(newOwner);
     }
 
