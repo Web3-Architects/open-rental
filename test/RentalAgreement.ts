@@ -7,12 +7,10 @@ import { MockLendingService } from "../typechain/MockLendingService";
 import { expect } from "chai";
 import { BigNumber, Contract } from "ethers";
 import { deployMockLendingService } from "./utils/mockLendingService";
+import { parseUnits18 } from "../utils/parseUnits";
 
 const { deployContract } = hre.waffle;
 const { ethers } = hre;
-
-// TODO: to move
-const parseUnits18 = (stringToParse: string) => ethers.utils.parseEther(stringToParse);
 
 const increaseEVMTime = async (time: number) => {
   await ethers.provider.send("evm_increaseTime", [time]);
@@ -54,7 +52,7 @@ describe("Rental Agreement", function () {
     deposit = parseUnits18("500");
     rentGuarantee = parseUnits18("1500");
 
-    lendingService = await deployMockLendingService(landlord, dai)
+    lendingService = await deployMockLendingService(landlord, dai);
 
     const rentalArtifact: Artifact = await hre.artifacts.readArtifact("RentalAgreement");
     rental = <RentalAgreement>(
