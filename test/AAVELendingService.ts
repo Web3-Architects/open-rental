@@ -89,6 +89,7 @@ describe.skip("Aave Lending Service (Kovan)", function () {
       await sendingTx.wait();
       const depositTx = await lendingService.deposit(depositAmount);
       await depositTx.wait();
+      const daiBalanceBefore = await dai.balanceOf(signer1.address);
 
       // Tokens after deposit
       const aToken = await ethers.getContractAt("IERC20", registeredATokenAddress);
@@ -101,12 +102,13 @@ describe.skip("Aave Lending Service (Kovan)", function () {
 
       const aTokenBalanceOfAaveLendingAfterWithdraw = await aToken.balanceOf(lendingService.address);
       console.log(`aTokenBalanceOfAaveLendingAfterDeposit`, aTokenBalanceOfAaveLendingAfterWithdraw.toString());
-      const daiBalance = await dai.balanceOf(signer1.address);
+      const daiBalanceAfter = await dai.balanceOf(signer1.address);
 
+      const expectedDaiBalance = daiBalanceAfter.sub(daiBalanceBefore);
       expect(aTokenBalanceOfAaveLendingAfterWithdraw).to.be.at.least(
         aTokenBalanceOfAaveLendingAfterWithdraw.div(parseUnits18("2")),
       );
-      expect(daiBalance).to.be.at.least(parseUnits18("25"));
+      expect(expectedDaiBalance).to.be.at.least(parseUnits18("25"));
     });
   });
 });

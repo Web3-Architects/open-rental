@@ -46,13 +46,15 @@ contract AAVELendingService is ILendingService {
 
     function withdraw(uint256 amount) external override(ILendingService) onlyOwner {
         uint256 aTokenBalance = aToken.balanceOf(address(this));
-        // Compute the amount to withdraw, taking into account accrued interest
-        uint256 tokenAmountToWithdraw = (amount * aTokenBalance) / depositedAmountBalance;
+        // Check that the amount to withdraw is less than what the contract holds
+        require(aTokenBalance >= amount, "Amount exceeds balance");
 
         // Approve the aToken contract to pull the amount to withdraw
-        aToken.approve(address(aaveLendingPool), tokenAmountToWithdraw);
+        aToken.approve(address(aaveLendingPool), amount);
         // Withdraw from the LendingPool
-        aaveLendingPool.withdraw(address(tokenUsedForPayments), tokenAmountToWithdraw, address(this));
+        aaveLendingPool.withdraw(address(tokenUsedForPayments), amount, address(this));
+        // Transfer withdrawn amount
+        tokenUsedForPayments.safeTransfer(msg.sender, amount);
 
         depositedAmountBalance -= amount;
     }
