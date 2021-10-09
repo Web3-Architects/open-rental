@@ -45,7 +45,10 @@ contract RentalAgreement {
         address _tokenUsedToPay,
         address _lendingService
     ) {
-        require(_tenantAddress != address(0), "Tenant cannot be the zero address");
+        require(_landlord != address(0), "Landlord address cannot be the zero address");
+        require(_tenantAddress != address(0), "Tenant address cannot be the zero address");
+        require(_tokenUsedToPay != address(0), "Token address cannot be the zero address");
+        require(_lendingService != address(0), "Lending Service address cannot be the zero address");
         require(_rent > 0, "rent cannot be 0");
 
         landlord = _landlord;
