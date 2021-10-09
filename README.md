@@ -1,6 +1,10 @@
-# Solidity Template
+# Solidity Tutorial (w/ ERC20 & AAVE)
 
-My favourite setup for writing Solidity smart contracts.
+👉👉 [LINK TO THE FULL TUTORIAL](https://blog.raphaelroullet.com/solidity-tutorial-erc20-aave/) 👈👈
+
+This is a tutorial for beginners which can be done ideally after completing CryptoZombies!
+
+This repository was created from [this Solidity template](https://github.com/paulrberg/solidity-template) which contains the following tools:
 
 - [Hardhat](https://github.com/nomiclabs/hardhat): compile and run the smart contracts on a local development network
 - [TypeChain](https://github.com/ethereum-ts/TypeChain): generate TypeScript types for smart contracts
@@ -9,9 +13,6 @@ My favourite setup for writing Solidity smart contracts.
 - [Solhint](https://github.com/protofire/solhint): linter
 - [Solcover](https://github.com/sc-forks/solidity-coverage) code coverage
 - [Prettier Plugin Solidity](https://github.com/prettier-solidity/prettier-plugin-solidity): code formatter
-
-This is a GitHub template, which means you can reuse it as many times as you want. You can do that by clicking the "Use this
-template" button at the top of the page.
 
 ## Usage
 
